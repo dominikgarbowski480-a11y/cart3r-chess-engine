@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#09090d">
+<title>CART3R CHESS ENGINE</title>
+<style>
+:root{color-scheme:dark;--bg:#08090d;--panel:#11131a;--panel2:#171a23;--line:#303442;--red:#ff334f;--muted:#a3a8b7;--light:#e8e2d5;--dark:#697487;--green:#48d597}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 50% -20%,#35101a 0,transparent 45%),var(--bg);color:#f4f5f8;font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+header{padding:22px max(18px,calc((100vw - 1180px)/2));border-bottom:1px solid #48202a;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.brand{font-weight:900;letter-spacing:.11em;font-size:clamp(17px,3vw,25px)}.brand span{color:var(--red)}.sub{color:var(--muted);font-size:11px;letter-spacing:.17em}
+.status{border:1px solid #385849;color:var(--green);border-radius:99px;padding:6px 10px;font-size:11px;white-space:nowrap}
+main{max-width:1180px;margin:24px auto;padding:0 16px 40px;display:grid;grid-template-columns:minmax(300px,650px) minmax(280px,1fr);gap:20px}
+.panel{background:linear-gradient(145deg,#151720,#0f1117);border:1px solid var(--line);border-radius:17px;padding:17px;box-shadow:0 14px 45px #0005}
+.panel h2{font-size:13px;letter-spacing:.13em;margin:0 0 14px;color:#ff6479}
+.board-wrap{max-width:610px;margin:auto}.board{display:grid;grid-template-columns:repeat(8,1fr);aspect-ratio:1;border:5px solid #242733;border-radius:8px;overflow:hidden;user-select:none}
+.square{border:0;padding:0;position:relative;display:grid;place-items:center;cursor:pointer;font-size:clamp(28px,6.1vw,58px);line-height:1;color:#111;text-shadow:0 2px 3px #0004}
+.square.light{background:#e7dfcf}.square.dark{background:#718096}
+.square.selected{box-shadow:inset 0 0 0 5px #ff334f}
+.square.last{background:#b7b45c}
+.square.legal:after{content:"";position:absolute;width:23%;height:23%;border-radius:50%;background:#19202a66}
+.square.capture:after{width:78%;height:78%;background:transparent;border:5px solid #ff334f99}
+.piece.white{color:#fff;text-shadow:0 1px 2px #171717,1px 2px 2px #171717,-1px -1px 1px #171717}.piece.black{color:#17191f;text-shadow:0 1px 1px #fff6}
+.coords{position:absolute;font-size:10px;font-weight:700;left:4px;top:2px;color:#1119}
+.board-controls,.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:13px}
+button,.button{background:#242834;border:1px solid #414758;color:#f5f6f8;padding:9px 12px;border-radius:9px;font-weight:650;cursor:pointer}
+button:hover{border-color:var(--red)}button.primary{background:#b51f37;border-color:#e83b55}button:disabled{opacity:.45;cursor:not-allowed}
+.side{display:grid;gap:15px;align-content:start}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+label{display:block;color:var(--muted);font-size:12px;margin:10px 0 5px}
+input,select,textarea{width:100%;background:#090b10;color:#f4f5f8;border:1px solid #3a4050;border-radius:9px;padding:10px;font:inherit}
+input:focus,textarea:focus,select:focus{outline:1px solid var(--red);border-color:var(--red)}
+.small{font-size:12px;color:var(--muted)}.eval{font-size:27px;font-weight:800}.engine-state{font-size:12px;color:var(--muted)}
+.move-list{max-height:170px;overflow:auto;background:#090b10;border:1px solid #2d3240;border-radius:9px;padding:9px;font-variant-numeric:tabular-nums}
+.move-row{display:grid;grid-template-columns:32px 1fr 1fr;gap:7px;padding:3px 2px;border-bottom:1px solid #ffffff0c}.move-no{color:#7e8799}.pv{padding:9px;background:#0a0c12;border:1px solid #2c3240;border-radius:9px;margin-top:8px}.pv strong{color:#ff7889}.pvline{color:#d6d9e1;margin-top:3px;word-break:break-word}
+.notice{border-left:3px solid var(--red);padding:9px 11px;background:#281018;border-radius:0 8px 8px 0;color:#e5cbd0;font-size:12px}
+footer{max-width:1180px;margin:0 auto;padding:0 16px 25px;color:#7f8595;font-size:11px}
+@media(max-width:850px){main{grid-template-columns:1fr;max-width:680px;margin-top:15px}.square{font-size:clamp(30px,10vw,58px)}header{padding:16px}.panel{padding:13px}}
+</style>
+</head>
+<body>
+<header><div><div class="brand">CART3R <span>CHESS ENGINE</span></div><div class="sub">POSITION ANALYSIS · TRAINING LAB</div></div><div class="status" id="status">● ENGINE STARTET</div></header>
+<main>
+<section class="panel">
+  <div class="row"><h2>SCHACHBRETT</h2><span class="small" id="turn">Weiß am Zug</span></div>
+  <div class="board-wrap"><div class="board" id="board" aria-label="Schachbrett"></div></div>
+  <div class="board-controls">
+    <button id="newGame">Neue Stellung</button><button id="undo">↶ Zurück</button><button id="flip">Brett drehen</button><button id="analyze" class="primary">Stellung analysieren</button>
+  </div>
+  <label for="fen">FEN-Stellung importieren / exportieren</label>
+  <input id="fen" spellcheck="false" value="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1">
+  <div class="actions"><button id="loadFen">FEN laden</button><button id="copyFen">FEN kopieren</button></div>
+  <label for="pgn">PGN importieren (optional)</label>
+  <textarea id="pgn" rows="3" placeholder='Zum Beispiel: 1. e4 e5 2. Nf3 Nc6'></textarea>
+  <div class="actions"><button id="loadPgn">PGN laden</button></div>
+</section>
+<aside class="side">
+  <section class="panel">
+    <h2>ENGINE-KONTROLLE</h2>
+    <div class="row"><span class="small">Engine</span><strong>Stockfish 19 Lite</strong></div>
+    <div class="row" style="margin-top:8px"><span class="small">Status</span><span class="engine-state" id="engineState">Lädt WebAssembly…</span></div>
+    <label for="depth">Analysetiefe</label><select id="depth"><option value="12">12 · Schnell</option><option value="16" selected>16 · Normal</option><option value="20">20 · Gründlich</option><option value="24">24 · Langsam</option></select>
+    <label for="multipv">Anzahl Kandidaten</label><select id="multipv"><option value="1">1 bester Zug</option><option value="3" selected>3 Varianten</option><option value="5">5 Varianten</option></select>
+    <div class="actions"><button id="stop" disabled>Analyse stoppen</button></div>
+    <p class="small">Die Engine läuft lokal im Browser als Web Worker. Beim ersten Start werden Engine-Dateien aus dem CDN geladen.</p>
+  </section>
+  <section class="panel">
+    <h2>BEWERTUNG</h2>
+    <div class="row"><div class="eval" id="evaluation">—</div><span class="small" id="depthLabel">Noch keine Analyse</span></div>
+    <div id="bestMoves"><p class="small">Klicke auf „Stellung analysieren“, um beste Züge und Varianten zu sehen.</p></div>
+  </section>
+  <section class="panel">
+    <h2>PARTIEVERLAUF</h2>
+    <div class="move-list" id="moveList"><span class="small">Noch keine Züge.</span></div>
+  </section>
+  <div class="notice">Nur für Training, eigene Stellungen und die Analyse abgeschlossener Partien. Nicht während laufender gewerteter Partien verwenden.</div>
+</aside>
+</main>
+<footer>Stockfish is free software under GPL-3.0. This interface uses chess.js (BSD-2-Clause) for chess rules. Engine source: <a href="https://github.com/nmrugg/stockfish.js" target="_blank" rel="noreferrer" style="color:#ff7184">nmrugg/stockfish.js</a>. No Chess.com account access or game automation.</footer>
+<script type="module">
+import { Chess } from "https://cdn.jsdelivr.net/npm/chess.js@1.4.0/+esm";
+
+const $ = id => document.getElementById(id);
+let game = new Chess(), worker = null, ready = false, busy = false, flipped = false;
+let selected = null, legalTargets = [], lastMove = null, latest = new Map(), currentFen = "";
+const pieces = {wk:"♔",wq:"♕",wr:"♖",wb:"♗",wn:"♘",wp:"♙",bk:"♚",bq:"♛",br:"♜",bb:"♝",bn:"♞",bp:"♟"};
+const files = ["a","b","c","d","e","f","g","h"];
+const ranks = ["8","7","6","5","4","3","2","1"];
+function setStatus(text, good=false){$("status").textContent=(good?"● ":"● ")+text;$("status").style.color=good?"#48d597":"#ff9aaa";$("engineState").textContent=text;}
+function squareName(file,rank){return files[file]+ranks[rank];}
+function renderBoard(){
+ const board=$("board"); board.innerHTML="";
+ const fs=flipped?[...files].reverse():files, rs=flipped?[...ranks].reverse():ranks;
+ const boardState=game.board();
+ for(let ri=0;ri<8;ri++) for(let fi=0;fi<8;fi++){
+   const sq=fs[fi]+rs[ri], file=files.indexOf(sq[0]), rank=8-Number(sq[1]), p=boardState[rank][file];
+   const b=document.createElement("button"); b.className="square "+((file+rank)%2===0?"light":"dark");
+   if(selected===sq)b.classList.add("selected");
+   if(lastMove&&(lastMove.from===sq||lastMove.to===sq))b.classList.add("last");
+   if(legalTargets.includes(sq)){b.classList.add("legal");if(p)b.classList.add("capture");}
+   b.setAttribute("aria-label",sq+(p?", "+(p.color==="w"?"weiße ":"schwarze ")+"Figur":""));
+   if(p){const span=document.createElement("span");span.className="piece "+(p.color==="w"?"white":"black");span.textContent=pieces[p.color+p.type];b.append(span);}
+   if(fi===0){const c=document.createElement("span");c.className="coords";c.textContent=sq[1];b.append(c);}
+   if(ri===7){const c=document.createElement("span");c.className="coords";c.style.left="auto";c.style.right="4px";c.style.top="auto";c.style.bottom="2px";c.textContent=sq[0];b.append(c);}
+   b.addEventListener("click",()=>onSquare(sq));board.append(b);
+ }
+ $("turn").textContent=game.isGameOver()?"Partie beendet":(game.turn()==="w"?"Weiß":"Schwarz")+" am Zug";
+ $("fen").value=game.fen();renderMoves();
+}
+function onSquare(sq){
+ const piece=game.get(sq);
+ if(selected && legalTargets.includes(sq)){
+   try{const move=game.move({from:selected,to:sq,promotion:"q"});lastMove={from:move.from,to:move.to};selected=null;legalTargets=[];renderBoard();clearAnalysis();}
+   catch(e){selected=null;legalTargets=[];renderBoard();}return;
+ }
+ if(piece&&piece.color===game.turn()){
+   selected=sq;legalTargets=game.moves({square:sq,verbose:true}).map(m=>m.to);
+ }else{selected=null;legalTargets=[];}
+ renderBoard();
+}
+function renderMoves(){
+ const hist=game.history(); const el=$("moveList");
+ if(!hist.length){el.innerHTML='<span class="small">Noch keine Züge.</span>';return;}
+ el.innerHTML="";
+ for(let i=0;i<hist.length;i+=2){const row=document.createElement("div");row.className="move-row";
+  const n=document.createElement("span");n.className="move-no";n.textContent=(i/2+1)+".";
+  const w=document.createElement("span");w.textContent=hist[i]||"";
+  const b=document.createElement("span");b.textContent=hist[i+1]||"";
+  row.append(n,w,b);el.append(row);}
+ el.scrollTop=el.scrollHeight;
+}
+function clearAnalysis(){latest.clear();$("evaluation").textContent="—";$("depthLabel").textContent="Stellung geändert";$("bestMoves").innerHTML='<p class="small">Neue Stellung – bitte erneut analysieren.</p>';if(busy)stopAnalysis();}
+function initEngine(){
+ try{
+   const engineUrl="https://cdn.jsdelivr.net/npm/stockfish@19.0.1/bin/stockfish-19-lite-single.js";
+   worker=new Worker(engineUrl);
+   worker.onmessage=e=>handleEngine(String(e.data));
+   worker.onerror=()=>{setStatus("ENGINE-FEHLER");$("engineState").textContent="Laden fehlgeschlagen. Internetverbindung/CDN prüfen.";};
+   worker.postMessage("uci");
+ }catch(err){setStatus("ENGINE NICHT VERFÜGBAR");$("engineState").textContent=err.message;}
+}
+function handleEngine(line){
+ if(line==="uciok"){worker.postMessage("isready");return;}
+ if(line==="readyok"){ready=true;setStatus("ENGINE BEREIT",true);$("engineState").textContent="Bereit · Stockfish 19 Lite";return;}
+ if(line.startsWith("info ") && line.includes(" score ")){
+   const m=line.match(/depth (\d+).*?multipv (\d+).*?score (cp|mate) (-?\d+).*? pv (.+)$/);
+   if(m){const depth=+m[1], idx=+m[2], type=m[3], val=+m[4], pv=m[5].trim();latest.set(idx,{depth,type,val,pv});renderAnalysis();}
+   else {const m2=line.match(/depth (\d+).*?score (cp|mate) (-?\d+).*? pv (.+)$/);if(m2){latest.set(1,{depth:+m2[1],type:m2[2],val:+m2[3],pv:m2[4].trim()});renderAnalysis();}}
+ }
+ if(line.startsWith("bestmove")){busy=false;$("stop").disabled=true;$("analyze").disabled=false;setStatus("ANALYSE ABGESCHLOSSEN",true);}
+}
+function pvToSan(pv){
+ const copy=new Chess(currentFen);const out=[];
+ for(const uci of pv.split(" ")){
+   if(!uci||uci==="(none)")break;
+   try{const from=uci.slice(0,2),to=uci.slice(2,4),promotion=uci[4];const m=copy.move({from,to,promotion:promotion||"q"});if(!m)break;out.push(m.san);}
+   catch{break;}
+ }
+ return out.join(" ");
+}
+function renderAnalysis(){
+ const vals=[...latest.entries()].sort((a,b)=>a[0]-b[0]);if(!vals.length)return;
+ const top=vals[0][1];let score=top.type==="mate"?(top.val>0?`Matt in ${top.val}`:`Matt gegen uns in ${Math.abs(top.val)}`):(top.val/100).toFixed(2);
+ // UCI scores are from the side-to-move perspective; show the engine's perspective.
+ $("evaluation").textContent=top.type==="mate"?score:(top.val>0?"+":"")+score;
+ $("depthLabel").textContent="Tiefe "+top.depth;
+ $("bestMoves").innerHTML="";
+ vals.forEach(([idx,v])=>{
+   const card=document.createElement("div");card.className="pv";
+   const title=document.createElement("strong");title.textContent=idx===1?"★ Bester Zug":"Variante "+idx;
+   const line=document.createElement("div");line.className="pvline";line.textContent=pvToSan(v.pv)||v.pv;
+   card.append(title,line);$("bestMoves").append(card);
+ });
+}
+function stopAnalysis(){if(worker&&busy){worker.postMessage("stop");busy=false;$("stop").disabled=true;$("analyze").disabled=false;setStatus("ANALYSE GESTOPPT");}}
+function analyze(){
+ if(!ready){setStatus("ENGINE LÄDT – BITTE WARTEN");return;}
+ if(game.isGameOver()){setStatus("PARTIE IST BEENDET");}
+ stopAnalysis();latest.clear();currentFen=game.fen();$("bestMoves").innerHTML='<p class="small">Berechne Varianten…</p>';
+ worker.postMessage("setoption name MultiPV value "+$("multipv").value);
+ worker.postMessage("position fen "+currentFen);
+ worker.postMessage("go depth "+$("depth").value);
+ busy=true;$("stop").disabled=false;$("analyze").disabled=true;setStatus("ANALYSIERT…");
+}
+$("analyze").addEventListener("click",analyze);
+$("stop").addEventListener("click",stopAnalysis);
+$("newGame").addEventListener("click",()=>{stopAnalysis();game.reset();selected=null;legalTargets=[];lastMove=null;renderBoard();clearAnalysis();});
+$("undo").addEventListener("click",()=>{stopAnalysis();const m=game.undo();if(m)lastMove=null;selected=null;legalTargets=[];renderBoard();clearAnalysis();});
+$("flip").addEventListener("click",()=>{flipped=!flipped;renderBoard();});
+$("loadFen").addEventListener("click",()=>{try{stopAnalysis();const next=new Chess();next.load($("fen").value.trim());game=next;lastMove=null;selected=null;legalTargets=[];renderBoard();clearAnalysis();setStatus("FEN GELADEN",true);}catch(e){alert("Ungültige FEN-Stellung: "+e.message);}});
+$("copyFen").addEventListener("click",async()=>{try{await navigator.clipboard.writeText(game.fen());setStatus("FEN KOPIERT",true);}catch{ $("fen").select();document.execCommand("copy");setStatus("FEN MARKIERT");}});
+$("loadPgn").addEventListener("click",()=>{try{stopAnalysis();const next=new Chess();next.loadPgn($("pgn").value);game=next;lastMove=null;selected=null;legalTargets=[];renderBoard();clearAnalysis();setStatus("PGN GELADEN",true);}catch(e){alert("PGN konnte nicht geladen werden: "+e.message);}});
+renderBoard();initEngine();
+</script>
+</body></html>
